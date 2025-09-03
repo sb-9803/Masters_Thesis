@@ -1,4 +1,4 @@
-# Masters_Thesis
+# Masters Thesis code
 
 
 Code used in creating figures and simulation of results for the masters thesis can be found here.
