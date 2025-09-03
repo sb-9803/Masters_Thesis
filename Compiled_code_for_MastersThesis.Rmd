@@ -1,0 +1,975 @@
+---
+title: "Masters_Thesis_Code"
+output: html_document
+date: "2025-09-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+
+
+rm(list=ls())
+library(igraph)
+library(tidyverse)
+library("gridExtra")               
+library(gtools)
+library(latex2exp)
+
+
+library('writexl')
+library(plotly)
+library(MASS)
+
+#set current working directory
+curr_wd = getwd()
+setwd(curr_wd)
+
+```
+
+**Code for Figure 1 - NK landscapes**
+
+```{r NK_landscapes}
+
+set.seed(42)
+
+#Rugged landscape
+n <- 1:1000
+x1 <- sample(n, size = 200, replace = TRUE)
+x2 <- 3*sin(x1)
+
+performance <- MASS::kde2d(x = x1, y = x2, n = 50)
+
+fig_nk <- plot_ly(x = performance$x, y = performance$y, z = performance$z) %>% add_surface(showscale = FALSE) 
+
+fig_nk <- fig_nk %>% layout(scene = list(xaxis = list(showticklabels = FALSE), yaxis = list(showticklabels = FALSE), zaxis = list(showticklabels = FALSE)))
+
+fig_nk
+
+
+#Smooth landscape
+x <- seq(1, 5, length.out = 200)
+y <- seq(1, 5, length.out = 200)
+smooth <- outer(x, y, function(xval, yval) {dnorm(xval, 2)*dnorm(yval, 3)}) 
+  
+fig_nk2 <- plot_ly(x = ~x, y = ~y, z = smooth) %>% add_surface(showscale = FALSE)
+
+fig_nk2 <- fig_nk2 %>% layout(scene = list(xaxis = list(showticklabels = FALSE), yaxis = list(showticklabels = FALSE), zaxis = list(showticklabels = FALSE)))
+
+fig_nk2
+
+
+```
+
+
+
+**Code for Figure 2 - Static and Annealing plots**
+
+Some of the below code for figure 2 is adapted from Hills (2024):
+Hills, T. T. (Ed.). (2024). Group Problem Solving: Harnessing the Wisdom of the Crowds. In *Behavioral Network Science: Language, Mind, and Society* (pp. 244–257). Cambridge University Press. https://doi.org/10.1017/9781108883894.016
+
+```{r networks_plots}
+
+
+#CODE ADAPTED FROM Hills (2024)
+
+#static network
+
+par(mfrow=c(1,3))
+par(mar=c(1,1,1,1))
+
+ring_network <- make_ring(30)
+plot(ring_network, layout = layout_in_circle(ring_network), vertex.color = 'blue', vertex.size = 8, edge.width = 2, vertex.label = NA, main = "Ring network")
+
+full_network <- make_full_graph(30)
+plot(full_network, layout = layout_nicely(full_network), vertex.color = 'blue', vertex.size = 8, edge.width = 0.5, vertex.label = NA, main = "Fully connected network")
+
+empty_network <- make_empty_graph(30)
+plot(empty_network, layout = layout_in_circle(empty_network), vertex.color = 'blue', vertex.size = 8, vertex.label = NA, main = "Independent network")
+
+
+#annealing network
+
+par(mfrow=c(2,3))
+par(mar=c(1,1,1,1))
+
+#step 1 - plot empty network
+plot(empty_network, layout = layout_in_circle(empty_network), vertex.color = 'blue', vertex.size = 8, vertex.label = NA, main = "Independent network")
+
+#step 2 - get edge list
+all_edges <- combn(1:30, 2, simplify = FALSE)
+all_edges <- do.call(rbind.data.frame, all_edges)
+names(all_edges) <- c("V1", "V2")
+all_edges_sub <- all_edges[, c("V1", "V2")]
+edge_vector <- as.vector(t(all_edges_sub))
+
+#step 3 - create 1st example of annealing
+set.seed(42)
+all_edge_vals <- c(1:435)
+sampling_1 <- sample(all_edge_vals, 50, replace = FALSE)
+anneal_1 <- make_empty_graph(n = 30, directed = FALSE) %>% add_edges(c(edge_vector[sampling_1]))
+plot(anneal_1, layout = layout_in_circle(anneal_1), vertex.color = 'blue', vertex.size = 8, vertex.label = NA, main = "Annealing - 1")
+
+#step 4 - create 2nd example of annealing
+set.seed(42)
+sampling_2 <- sample(all_edge_vals, 200, replace = FALSE)
+anneal_2 <- make_empty_graph(n = 30, directed = FALSE) %>% add_edges(c(edge_vector[sampling_2]))
+plot(anneal_2, layout = layout_in_circle(anneal_2), vertex.color = 'blue', vertex.size = 8, vertex.label = NA, main = "Annealing - 2")
+
+
+#step 5 - create 3rd example of annealing
+set.seed(42)
+sampling_3 <- sample(all_edge_vals, 400, replace = FALSE)
+anneal_3 <- make_empty_graph(n = 30, directed = FALSE)  %>% add_edges(c(edge_vector[sampling_3]))
+plot(anneal_3, layout = layout_in_circle(anneal_3), vertex.color = 'blue', vertex.size = 8, vertex.label = NA, main = "Annealing - 3")
+
+#step 6 - make fully connected network
+set.seed(42)
+plot(full_network, layout = layout_in_circle(full_network), vertex.color = 'blue', vertex.size = 8, edge.width = 0.5, vertex.label = NA, main = "Fully connected network")
+
+
+```
+
+
+
+**Code for figure 3 - gamma = 0.005 plot**
+
+Some of the below code is adapted from Hills (2024):
+Hills, T. T. (Ed.). (2024). Group Problem Solving: Harnessing the Wisdom of the Crowds. In *Behavioral Network Science: Language, Mind, and Society* (pp. 244–257). Cambridge University Press. https://doi.org/10.1017/9781108883894.016
+
+
+```{r gamma_005_graph}
+
+#CODE ADAPTED FROM Hills (2024) and Barkoczi & Galesic (2016)
+set.seed(2)
+
+#create empty graph
+net_for_plot <- make_empty_graph(30, directed=FALSE)
+
+#get all edge combinations
+all_edges <- combn(1:30, 2, simplify = FALSE)
+all_edges <- do.call(rbind.data.frame, all_edges)
+names(all_edges) <- c("V1", "V2")
+all_edges <- all_edges %>%
+  mutate(net_edges = paste(V1,V2, sep = "-")) %>%
+  subset(select = net_edges)
+
+#loop through 100 timesteps
+for (i in 1:100) {
+
+#get existing edges
+existing_edges <- data.frame(as_edgelist(net_for_plot))
+existing_edges <- existing_edges %>% mutate(net_edges_existing = paste(X1,X2, sep = "-")) %>% subset(select = net_edges_existing)
+
+#find edges not yet connected
+edges_not_found <- all_edges$net_edges[!(all_edges$net_edges %in% existing_edges$net_edges_existing)]
+
+#get number of edges to add in an iteration
+gamma <- 0.005
+edges_to_add_selection <- rbinom(length(edges_not_found), 1, gamma)
+
+
+#sample from remaining edges
+edges_to_add <- edges_not_found[which(edges_to_add_selection==1)]
+edges_to_add <- unlist(strsplit(edges_to_add, "-"))
+edges_to_add <- as.numeric(edges_to_add)
+
+#add to network
+if(length(edges_to_add)>=1) {
+  net_for_plot <- add_edges(net_for_plot, edges_to_add)
+  net_for_plot <- simplify(net_for_plot)
+}
+
+}
+
+plot(net_for_plot, layout = layout_in_circle(net_for_plot), vertex.color = 'blue', vertex.size = 8, vertex.label = NA, main = "Annealing network gamma = 0.005 at end of 100 timesteps")
+
+```
+
+
+
+**SIMULATION CODE**
+
+Code adapted from Hills (2024) and Barkoczi & Galesic (2016):
+Hills, T. T. (Ed.). (2024). Group Problem Solving: Harnessing the Wisdom of the Crowds. In *Behavioral Network Science: Language, Mind, and Society* (pp. 244–257). Cambridge University Press. https://doi.org/10.1017/9781108883894.016
+Barkoczi, D., & Galesic, M. (2016). Social learning strategies modify the effect of network structure on group performance. *Nature Communications*, 7(1), 13109. https://doi.org/10.1038/ncomms13109
+
+WARNING: The simulation times are very long.
+DISCLAIMER: Some of the K-complexity landscapes in the main study were run in batches or separately to optimise computational load and runtime. This means that if the below code is run in its entirety in a single loop, the final values in performance might vary slightly from those reported in the study. However, this should not affect the overall patterns observed in the study.
+
+```{r generate_landscape function}
+
+
+## Function to generate the fitness score for all possible solutions
+generate_landscape<-function(N,K,LS,fitness,depends){
+  if(K==0){
+    fitness.score <- vector()
+    for (ag in 1:nrow(LS)){ # LS includes all solution permutations
+      rows<-as.numeric(LS[ag,])+1 
+      values<-sapply(1:N, function(y) fitness[rows[y],y]) # Contains fitness values of each bit position's dependency sequence
+      fitness.score[ag]<-mean(values) # Mean of fitness values for final solution fitness score
+    }
+  } else {
+    # For K > 0, the depends matrix is used to get the dependent bit positions and use them to find the pattern and corresponding sub sequence score based on position and calculate final fitness
+    indx1<-do.call(`paste0`,as.data.frame(fitness[,c(1:(K+1))]))
+    indx2<-sapply(1:N, function(y) do.call(`paste0`,as.data.frame(LS[,depends[,y]])))
+    fitness.score <- sapply(1:nrow(LS), function(o) mean(diag(sapply(indx2[o,], function(x) fitness[which(indx1 %in% x),(K+2):ncol(fitness)]))))
+  }
+  # Combine into a landscape table
+  landscape<-cbind(LS[,1:N],fitness.score)
+  return(landscape)
+}
+
+
+set.seed(2)
+
+#set baseline model parameters
+N=10; K=9  #NK landscape value
+n.agents=15 #number of agents
+tsteps=100 #number of timesteps
+repetitions = 200
+
+#initialise list that will contain performance of all networks in all NK landscapes
+k_nested_perf <- list()
+
+start_time <- Sys.time()
+
+#### Initialise networks
+nets <- list()
+nets[[1]] <-  make_full_graph(n.agents)
+nets[[2]] <-  make_ring(n.agents)
+nets[[3]] <- make_empty_graph(n.agents, directed=FALSE)
+nets[[4]] <- make_empty_graph(n.agents, directed=FALSE) # Annealing network for gamma = 0.005
+nets[[5]] <- make_empty_graph(n.agents, directed=FALSE) # Annealing network for gamma = 0.05
+nets[[6]] <- make_empty_graph(n.agents, directed=FALSE) # Annealing network for gamma = 0.5
+nets[[7]] <- make_empty_graph(n.agents, directed=FALSE) # Annealing network for gamma = 1.0
+
+
+#loop over all values of K from 0 to Kth landscape
+for (k_val in 0:K) {
+
+
+# generate landscape similar to finction above
+LS<-permutations(2,N,v=c(0,1),repeats.allowed=TRUE)
+LS<-as.data.frame(LS)
+if (k_val==0){
+  depends <- as.vector(1:N)
+  values <- replicate(N,round(runif(2,0,1),1))
+  fitness <- values
+} else {
+  # 'depends' determines which other bits the kth bit depends on
+  depends <- rbind(1:N,replicate(N,sample(c(1:N),k_val,replace=F)))
+  depends2 <- rbind(1:N,replicate(N,sample(c(1:N),k_val,replace=F))) # 2nd Env
+  # Combinations: possible arrangements of bits for each value
+  combinations <- permutations(2,k_val+1,v=c(0,1),repeats.allowed=TRUE)
+  # Values: fitness values for each arrangment in each position
+  values <- replicate(N,round(runif(nrow(combinations),0,1),1))
+  values2 <- replicate(N,round(runif(nrow(combinations),0,1),1)) # 2nd Env
+  # Fitness assigns K+1 combinations (rows) to N genome locations (columns, starting after K+1)
+  fitness <- cbind(combinations,values)
+
+}
+# Make landscape
+landscape1 <- generate_landscape(N,k_val,LS,fitness,depends)
+colnames(landscape1)[N+1] <- "fitness.score"
+landscape1[,'fitness.score'] <- (landscape1[,'fitness.score']/max(landscape1[,'fitness.score']))^8 # Take fitness to 8th power
+gene.names <- sapply(1:nrow(landscape1), function(x) paste(landscape1[x,1:N], collapse=""))
+landscape1 <-cbind(landscape1, gene.names)
+
+
+# GROUP SEARCH SIMULATION
+#initialise lists to store network performance and diversity in solutions
+netdata_perf <- list() 
+netdata_div <- list() 
+
+
+# Start loop for repetitions 
+  
+  for (rep in 1:repetitions){ 
+      # Reset landscape every 5 repetitions---randomize landscapes
+      if(rep %% 5 == 0){
+        if (k_val==0){
+          depends <- as.vector(1:N)
+          values <- replicate(N,round(runif(2,0,1),1))
+          fitness <- values
+        } else {
+          # 'depends' determines which other bits the kth bit depends on
+          depends <- rbind(1:N,replicate(N,sample(c(1:N),k_val,replace=F)))
+          depends2 <- rbind(1:N,replicate(N,sample(c(1:N),k_val,replace=F))) # 2nd Env
+          # Combinations: possible arrangements of bits for each value
+          combinations <- permutations(2,k_val+1,v=c(0,1),repeats.allowed=TRUE)
+          # Random fitness values for each arrangement in each position
+          values <- replicate(N,round(runif(nrow(combinations),0,1),1))
+          # Fitness assigns K+1 combinations (rows) to N genome locations (columns, starting after K+1)
+          fitness <- cbind(combinations,values)
+        }
+        # Make landscape
+        landscape1 <- generate_landscape(N,k_val,LS,fitness,depends)
+        colnames(landscape1)[N+1] <- "fitness.score"
+        landscape1[,'fitness.score'] <- (landscape1[,'fitness.score']/max(landscape1[,'fitness.score']))^8 # Take fitness to 8th power
+        gene.names <- sapply(1:nrow(landscape1), function(x) paste(landscape1[x,1:N], collapse=""))
+        landscape1 <-cbind(landscape1, gene.names)
+  
+      
+      }
+    
+      #loop through each network
+      for (net in 1:length(nets)){
+      
+        # Reset agents  : #ALLOCATE RANDOM STARTING POSITIONS
+        agents<-list()
+        agents[[1]] <- landscape1[sample(1:(2^N),n.agents,replace=F),] # sample from possible solutions (2^N) and get fitness alongside
+        
+        # reset networks for annealing graphs
+        if (net %in% 4:7) {
+          nets[[net]] <- make_empty_graph(n.agents, directed = FALSE)
+        }
+  
+          
+          #At each timestep, perform either individual exploration or copy best neighbour
+          for (i in 2:tsteps){
+            
+            # Bring forward genomes
+            agents[[i]] <- agents[[i-1]]
+            
+            # Identify neighbors for each node
+            samples <- lapply(1:n.agents, function(x) as.vector(neighbors(nets[[net]],x)))
+            
+            # Make dummy vector for individual learning, updated below
+            ind.learn<-vector(length=n.agents) 
+            
+            # Replacements for social learning, so we don't copy over one another during replacement
+            agents2 <- agents[[i]] 
+            
+            # For each agent
+            for (j in 1:n.agents){
+              payoffs <- agents[[i]][samples[[j]],'fitness.score'] # Get fitness of neighbors 
+              if(length(payoffs) > 0){
+                best<-which(payoffs==max(payoffs)) # Which of sample has highest payoff
+                if(length(best)>1) best <- sample(best,1) # If there's a tie in highest payoff, sample randomly
+                agents2[j,] <- agents[[i]][samples[[j]][best],] # Adopt choice of best member
+              } 
+              if(agents2[j,'fitness.score']<=agents[[i-1]][j,'fitness.score']){ # If payoff worse or equal, learn individually
+                ind.learn[j] <- j
+              }
+            }
+            # Reduce ind.learn list to index for self-learners (explorers) 
+            ind.learn<-ind.learn[ind.learn!=0]
+            
+            # Replace those who have a better neighbor
+            no.learn <- setdiff(1:n.agents,ind.learn) # Removes all ind.learn from list
+            
+            if(length(no.learn)>0){
+              agents[[i]][no.learn,] <- agents2[no.learn,] # Assigns learned best from above 
+            }
+            
+            #Individual learning for agents marked for individual learning
+            if(length(ind.learn)>=1){
+              
+              for (n in c(ind.learn)){
+                # Copy the genome
+                gene_buffer <- agents[[i-1]][n,1:N]
+                
+                # flip one bit
+                # sample bit
+                bit <- sample(1:N, 1)
+                # flip it
+                gene_buffer[bit] <- ifelse(gene_buffer[bit]==1, 0, 1) 
+                # Fix name
+                gene_buffer.name <- paste(gene_buffer, collapse="")
+                # Recompute fitness
+                gene_buffer.fitness <- landscape1[which(landscape1$gene.names==gene_buffer.name),'fitness.score']
+                # Replace the original
+                agents[[i]][n,] <- data.frame(gene_buffer, fitness.score=gene_buffer.fitness, gene.names = gene_buffer.name)
+              }
+               
+            }
+            #COMPARE PAYOFFS AFTER LEARNING AND DECIDE WHETHER OR NOT TO SWITCH
+            switching <- ifelse(agents[[i-1]][,'fitness.score'] < agents[[i]][,'fitness.score'],1,0)*1:n.agents
+            not.switching <- setdiff(1:n.agents,switching[switching!=0])
+            agents[[i]][not.switching,] <- agents[[i-1]][not.switching,] # Those who didn't improve stay the same
+            
+            # Annealing networks update their edges
+            if(net==4){  #gamma = 0.005
+              
+              #get all edge pairs
+              all_edges <- combn(1:n.agents, 2, simplify = FALSE)
+              all_edges <- do.call(rbind.data.frame, all_edges)
+              names(all_edges) <- c("V1", "V2")
+              all_edges <- all_edges %>%
+                mutate(net_edges = paste(V1,V2, sep = "-")) %>%
+                subset(select = net_edges)
+
+              #get existing edges in the network
+              existing_edges <- data.frame(as_edgelist(nets[[net]]))
+              existing_edges <- existing_edges %>% mutate(net_edges_existing = paste(X1,X2, sep = "-")) %>% subset(select = net_edges_existing)
+
+              #find edges not yet connected
+              edges_not_found <- all_edges$net_edges[!(all_edges$net_edges %in% existing_edges$net_edges_existing)]
+
+              #get number of edges to add in an iteration based on gamma
+              gamma <- 0.005
+              edges_to_add_selection <- rbinom(length(edges_not_found), 1, gamma)
+
+
+              #sample from remaining edges
+              edges_to_add <- edges_not_found[which(edges_to_add_selection==1)]
+              edges_to_add <- unlist(strsplit(edges_to_add, "-"))
+              edges_to_add <- as.numeric(edges_to_add)
+
+              #add to network
+              if(length(edges_to_add)>=1) {
+                nets[[net]] <- add_edges(nets[[net]], edges_to_add)
+                nets[[net]] <- simplify(nets[[net]])
+                  }
+
+              }
+
+            if(net==5){ # gamma = 0.05
+              
+              #get all edge pairs
+              all_edges <- combn(1:n.agents, 2, simplify = FALSE)
+              all_edges <- do.call(rbind.data.frame, all_edges)
+              names(all_edges) <- c("V1", "V2")
+              all_edges <- all_edges %>%
+                mutate(net_edges = paste(V1,V2, sep = "-")) %>%
+                subset(select = net_edges)
+
+              #get existing edges in the network
+              existing_edges <- data.frame(as_edgelist(nets[[net]]))
+              existing_edges <- existing_edges %>% mutate(net_edges_existing = paste(X1,X2, sep = "-")) %>% subset(select = net_edges_existing)
+
+              #find edges not yet connected
+              edges_not_found <- all_edges$net_edges[!(all_edges$net_edges %in% existing_edges$net_edges_existing)]
+
+              #get number of edges to add in an interation based on gamma
+              gamma <- 0.05
+              edges_to_add_selection <- rbinom(length(edges_not_found), 1, gamma)
+
+              #sample from remaining edges
+              edges_to_add <- edges_not_found[which(edges_to_add_selection==1)]
+              # edges_to_add <- str_replace(edges_to_add, "-", ",")
+              edges_to_add <- unlist(strsplit(edges_to_add, "-"))
+              edges_to_add <- as.numeric(edges_to_add)
+
+              #add to network
+              if(length(edges_to_add)>=1) {
+                nets[[net]] <- add_edges(nets[[net]], edges_to_add)
+                nets[[net]] <- simplify(nets[[net]])
+                  }
+              }
+
+            if(net==6){ # gamma = 0.5
+              
+              #get all edge pairs
+              all_edges <- combn(1:n.agents, 2, simplify = FALSE)
+              all_edges <- do.call(rbind.data.frame, all_edges)
+              names(all_edges) <- c("V1", "V2")
+              all_edges <- all_edges %>%
+                mutate(net_edges = paste(V1,V2, sep = "-")) %>%
+                subset(select = net_edges)
+
+              #get existing edges in the network
+              existing_edges <- data.frame(as_edgelist(nets[[net]]))
+              existing_edges <- existing_edges %>% mutate(net_edges_existing = paste(X1,X2, sep = "-")) %>% subset(select = net_edges_existing)
+
+              #find edges not yet connected
+              edges_not_found <- all_edges$net_edges[!(all_edges$net_edges %in% existing_edges$net_edges_existing)]
+
+              #get number of edges to add in an interation based on gamma
+              gamma <- 0.5
+              edges_to_add_selection <- rbinom(length(edges_not_found), 1, gamma)
+
+              #sample from remaining edges
+              edges_to_add <- edges_not_found[which(edges_to_add_selection==1)]
+              # edges_to_add <- str_replace(edges_to_add, "-", ",")
+              edges_to_add <- unlist(strsplit(edges_to_add, "-"))
+              edges_to_add <- as.numeric(edges_to_add)
+
+              #add to network
+              if(length(edges_to_add)>=1) {
+                nets[[net]] <- add_edges(nets[[net]], edges_to_add)
+                nets[[net]] <- simplify(nets[[net]])
+                  }
+              }
+
+            if(net==7){ # gamma = 1.0
+              
+              #get all edge pairs
+              all_edges <- combn(1:n.agents, 2, simplify = FALSE)
+              all_edges <- do.call(rbind.data.frame, all_edges)
+              names(all_edges) <- c("V1", "V2")
+              all_edges <- all_edges %>%
+                mutate(net_edges = paste(V1,V2, sep = "-")) %>%
+                subset(select = net_edges)
+
+              #get existing edges in the network
+              existing_edges <- data.frame(as_edgelist(nets[[net]]))
+              existing_edges <- existing_edges %>% mutate(net_edges_existing = paste(X1,X2, sep = "-")) %>% subset(select = net_edges_existing)
+
+              #find edges not yet connected
+              edges_not_found <- all_edges$net_edges[!(all_edges$net_edges %in% existing_edges$net_edges_existing)]
+
+              #get number of edges to add in an interation based on gamma
+              gamma <- 1.0
+              edges_to_add_selection <- rbinom(length(edges_not_found), 1, gamma)
+
+              #sample from remaining edges
+              edges_to_add <- edges_not_found[which(edges_to_add_selection==1)]
+              # edges_to_add <- str_replace(edges_to_add, "-", ",")
+              edges_to_add <- unlist(strsplit(edges_to_add, "-"))
+              edges_to_add <- as.numeric(edges_to_add)
+
+              #add to network
+              if(length(edges_to_add)>=1) {
+                nets[[net]] <- add_edges(nets[[net]], edges_to_add)
+                nets[[net]] <- simplify(nets[[net]])
+                  }
+              }
+
+        
+            } # Timestep ends here
+    
+          # Average of fitness 
+          perf.time <- sapply(1:tsteps, function(x) mean(agents[[x]][,'fitness.score'])) 
+          # Number of unique genomes
+          diversity <- sapply(1:tsteps, function(x) nrow(unique(agents[[x]]))) 
+          
+        # Record results for network 
+        if (rep == 1){
+          netdata_perf[[net]] <- perf.time
+          netdata_div[[net]] <- diversity
+        } else {
+          netdata_perf[[net]] <- rbind(netdata_perf[[net]], perf.time)
+          netdata_div[[net]] <- rbind(netdata_div[[net]], diversity)
+        }
+          
+      }  # End each network repetition here
+    
+  
+    } # End group of repetitions here
+
+    #aggregate fitness score on last timestep across all repetitions for all networks  
+    avg_fitness_across_reps_last_tstep <- sapply(1:length(nets), function(net) mean(netdata_perf[[net]][, tsteps]))
+
+    #create performance matrix for each network's average performance on last timestep for each k-complexity landscape
+    if (k_val==0) { 
+    
+      netdata_perf_k <- avg_fitness_across_reps_last_tstep
+   
+     } else {
+    
+       netdata_perf_k <- cbind(netdata_perf_k, avg_fitness_across_reps_last_tstep)
+     }
+    
+    
+    #get nested results of performance for all networks at all k values for all timesteps across all repetitions
+    k_nested_perf[[k_val+1]] <- lapply(1:length(nets), function(net) netdata_perf[[net]]) #note the 1st list belongs to k=0, 2nd to k=1 etc..
+  
+  #for tracking loops
+    print(k_val)
+  
+  
+} #End k loop here
+
+#execution time tracking
+end_time <- Sys.time()
+total_exec_time <- round((end_time - start_time), 2)
+total_exec_time
+
+```
+
+
+**Code for all Average Performance of networks for all k-complexity landscape figures**
+
+```{r k_plot_perf_code}
+
+#values only for runs that require importing data
+K=14
+nets=1:7
+tsteps=100
+
+
+#get the average at last tstep
+
+#initialise matrix
+k_plot_table <- matrix(data = NA, nrow = length(nets), ncol = (K+1))
+
+#loop over each k list
+for (k_val in 1:(K+1)) { #because in nested k the k lists start from 1
+  
+  avg_fitness_across_reps_last_tstep <- sapply(1:7, function(net) mean(k_nested_perf[[k_val]][[net]][, tsteps]))
+  
+  k_plot_table[, k_val] <- avg_fitness_across_reps_last_tstep
+  
+}
+
+#get new col names based on K value
+newnames <- seq(0, K, 1)
+
+#give column and row names to matrix
+colnames(k_plot_table) <- newnames
+network_names <- c("Full", "Ring", "Independent", 0.005, 0.05, 0.5, 1.0)
+
+#convert to dataframe and add network names as column
+k_plot_table_df <- as.data.frame(k_plot_table)
+k_plot_table_df
+
+k_plot_table_df <- cbind(network_names, k_plot_table_df)
+
+
+#save table in excel - replace path
+file_path <- curr_wd
+file_name <- "give file name"
+write_xlsx(k_plot_table_df, paste0(file_path, "/", file_name, ".xlsx"))
+
+
+#pivot df to longer
+k_plot_table_df <- k_plot_table_df %>% pivot_longer(cols = 2:(K+2), names_to = "k_values", values_to = "avg_fitness_last_tstep")
+k_plot_table_df$k_values <- as.numeric(k_plot_table_df$k_values)
+
+k_plot_table_df
+
+#make plots
+
+k_plot <- ggplot(k_plot_table_df, aes(x = k_values, y = avg_fitness_last_tstep)) + 
+  geom_line(aes(group = network_names, colour = network_names), size = 1.5) + 
+  geom_point(data = k_plot_table_df, aes(x = k_values, y = avg_fitness_last_tstep, colour = network_names), size = 3)+
+  ylim(0, 1.0) +
+  scale_x_continuous(n.breaks = (K+1))+
+  scale_color_manual(values = network_colours) +
+  labs(title = "Performance of different networks for various K complexity landscapes", x = "K values", y = "Average fitness of network at last timestep across 200 repetitions", colour = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12))
+
+k_plot
+
+ggplot2::ggsave(filename = paste0("Avg_perf_vs_K_vLinePlot_200reps_n30.png"), plot = k_plot, width = 10, height = 7, units = "in", path = paste0(file_path, "/"))
+
+
+
+#plot for Num agents = 15
+
+k_plot_15 <- ggplot(k_plot_table_df, aes(x = k_values, y = avg_fitness_last_tstep)) + 
+  geom_line(aes(group = network_names, colour = network_names), size = 1.5) + 
+  geom_point(data = k_plot_table_df, aes(x = k_values, y = avg_fitness_last_tstep, colour = network_names), size = 3)+
+  ylim(0, 1.0) +
+  scale_color_manual(values = network_colours) +
+  labs(title = "Performance of different networks (num agents=15) for various K complexity landscapes", x = "K values", y = "Average fitness of networks at last timestep across 200 repetitions", colour = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12))
+
+k_plot_15
+
+ggplot2::ggsave(filename = paste0("Avg_perf_vs_K_vLinePlot_200reps_n15.png"), plot = k_plot_15, width = 10, height = 7, units = "in", path = paste0(file_path, "/"))
+
+```
+
+
+
+**Code for all timestep at which each network hits its maximum performance on all NK landscapes figures**
+
+```{r tstep@maxperf_vs_k_plots}
+
+#find the timestep at which each network hits max performance on average for each k
+
+#create empty matrix with rows for nets and columns for Ks
+max_fitness_tstep_per_k_net <- matrix(data = NA, nrow = length(nets), ncol = K+1)
+
+#loop over each k list
+for (k_val in 1:(K+1)) { #because in nested k the k lists start from 1
+  
+  #at each k loop, generate a new matrix that stores the average performance at each timestep (across reps) for each network
+  avg_fitness_per_tstep <- matrix(data = NA, nrow = length(nets), ncol = tsteps)
+  
+  #loop through each network within each k
+  for (net in 1:length(nets)) {
+    
+    #loop through each timestep for each network in each k
+    for (tstep in 1:tsteps) {
+    
+      #calculate the average fitness across repetitions for each timestep
+      avg_fitness_per_tstep[net, tstep] <- mean(k_nested_perf[[k_val]][[net]][, tstep])
+    
+    }
+    
+    #add the column number (tstep) at which maximum fitness is FIRST achieved for each network and each k combination
+    max_fitness_tstep_per_k_net[net, k_val] <- which.max(avg_fitness_per_tstep[net, ])
+  
+  }
+
+}
+
+
+max_fitness_tstep_per_k_net
+
+#plotting tstep vs k
+
+#network names to add as column
+network_names <- c("Full", "Ring", "Independent", 0.005, 0.05, 0.5, 1.0)
+
+#convert matrix to df 
+max_fitness_tstep_per_k_net_df <- as.data.frame(max_fitness_tstep_per_k_net)
+
+#column names for k values
+colnames(max_fitness_tstep_per_k_net_df) <- c(0:K)
+
+#combine the network names column with rest of df
+max_fitness_tstep_per_k_net_df <- cbind(network_names, max_fitness_tstep_per_k_net_df)
+
+max_fitness_tstep_per_k_net_df 
+
+#save df into excel
+file_path <- curr_wd
+file_name <- "give_file_name"
+write_xlsx(max_fitness_tstep_per_k_net_df, paste0(file_path, "/", file_name, ".xlsx"))
+
+#pivot df longer
+max_fitness_tstep_per_k_net_df <- max_fitness_tstep_per_k_net_df %>% pivot_longer(cols = 2:ncol(max_fitness_tstep_per_k_net_df), names_to = "k_values", values_to = "tstep_where_max_fitness")
+max_fitness_tstep_per_k_net_df$k_values <- as.numeric(max_fitness_tstep_per_k_net_df$k_values)
+
+
+#plots
+
+#num agents = 30 plot
+
+max_fitness_tstep_per_k_plot <- ggplot(max_fitness_tstep_per_k_net_df, aes(x = k_values, y = tstep_where_max_fitness)) + 
+  geom_line(aes(group = network_names, colour = network_names), size = 1.5) + 
+  geom_point(data = max_fitness_tstep_per_k_net_df, aes(x = k_values, y = tstep_where_max_fitness, colour = network_names), size = 3)+
+  scale_y_continuous(n.breaks = 20)+
+  scale_x_continuous(n.breaks = (K+1))+
+  scale_color_manual(values = network_colours) +
+  labs(title = "Timestep at which max fitness is achieved for each network for different NK landscapes", x = "K values", y = "Average timestep at which max fitness achieved (1-100)", color = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 10), legend.text = element_text(size = 12))
+
+max_fitness_tstep_per_k_plot
+
+#save plot
+ggplot2::ggsave(filename = paste0("Timestep_max_perf_reached_vs_K_200reps_n30.png"), plot = max_fitness_tstep_per_k_plot, width = 10, height = 8, units = "in", path = paste0(file_path, "/"))
+
+
+
+#num agents = 15 plot
+
+max_fitness_tstep_per_k_plot_15 <- ggplot(max_fitness_tstep_per_k_net_df, aes(x = k_values, y = tstep_where_max_fitness)) + 
+  geom_line(aes(group = network_names, colour = network_names), size = 1.5) + 
+  geom_point(data = max_fitness_tstep_per_k_net_df, aes(x = k_values, y = tstep_where_max_fitness, colour = network_names), size = 3)+
+  scale_y_continuous(n.breaks = 20)+
+  scale_color_manual(values = network_colours) +
+  labs(title = "Timestep at which max fitness is achieved for each network (num agents=15) for different NK landscapes", x = "K values", y = "Average timestep at which max fitness achieved (1-100)", color = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 10), legend.text = element_text(size = 12))
+
+max_fitness_tstep_per_k_plot_15
+
+#save plot
+ggplot2::ggsave(filename = paste0("Timestep_max_perf_reached_vs_K_200reps_n15.png"), plot = max_fitness_tstep_per_k_plot_15, width = 10, height = 8, units = "in", path = paste0(file_path, "/"))
+
+
+```
+
+
+**Code for getting average performance of each network over 100 timesteps for all NK landscapes figures**
+
+```{r tsteps_vs_perf_plots_allKs}
+
+#initialise list
+tstep_vs_perf_avg_fitness_list <- list() 
+
+for (k_val in 1:(K+1)) { #because in nested k the k lists start from 1
+ 
+  #at each k loop, generate a new matrix that stores the average performance at each timestep (across reps) for each network
+  avg_fitness_per_tstep <- matrix(data = NA, nrow = length(nets), ncol = tsteps)
+  
+  #loop through each network within each k
+  for (net in 1:length(nets)) {
+    
+    #loop through each timestep for each network in each k
+    for (tstep in 1:tsteps) {
+    
+      #calculate the average fitness across repetitions for each timestep
+      avg_fitness_per_tstep[net, tstep] <- mean(k_nested_perf[[k_val]][[net]][, tstep])
+    
+    }
+   
+  }
+  
+  tstep_vs_perf_avg_fitness_list[[k_val]] <- avg_fitness_per_tstep
+  
+}  
+
+
+network_names <- c("Full", "Ring", "Independent", 0.005, 0.05, 0.5, 1.0)
+
+file_path <- curr_wd
+
+#loop through each NK landscape
+for (i in seq_along(tstep_vs_perf_avg_fitness_list)) {
+  
+  #get current NK landscape results for all networks
+  curr_mat <- tstep_vs_perf_avg_fitness_list[[i]]
+  curr_df <- as.data.frame(curr_mat)
+  colnames(curr_df) <- c(1:100)
+  curr_df <- cbind(network_names, curr_df)
+  curr_df <- curr_df %>% pivot_longer(cols = 2:(tsteps+1), names_to = "tsteps", values_to = "avg_fitness")
+  curr_df$tsteps <- as.numeric(as.character(curr_df$tsteps))
+  
+  #create plot of avg fitness vs timesteps for current NK landscape and all networks
+  plot_tmp <- ggplot(curr_df, aes(x = tsteps, y = avg_fitness, group = network_names, colour = network_names)) + 
+    geom_line(size = 1.5, alpha = 0.8) +
+    ylim(0, 1.0) + 
+    scale_x_continuous(n.breaks = 10) +
+    scale_color_manual(values = network_colours) +
+    labs(title = paste0("Average performance of networks across time for K = ", i - 1), x = "Timesteps", y = "Average performance", color = "Networks")+
+    theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 11), legend.text = element_text(size = 12))
+  
+  print(plot_tmp)
+  
+  ggplot2::ggsave(filename = paste0("perf_vs_tsteps_for_K_200rep_n30_N10K", i-1, ".png"), plot = plot_tmp, path = file_path)
+  
+}
+
+
+```
+
+
+**Code for all timestep at which max fitness achieved vs max fitness value for all networks on all K complexity landscapes figures**
+
+```{r tstep@maxperf_vs_perf_plot}
+
+#using variable from previous cells tstep@maxperf vs K values 
+max_fitness_tstep_per_k_net
+
+# ylabs_tstep_k_plot <- max_fitness_tstep_per_k_net_df$tstep_where_max_fitness
+
+#create empty matrix with rows for nets and columns for Ks
+max_fitness_per_k_net <- matrix(data = NA, nrow = length(nets), ncol = K+1)
+
+for (k_val in 1:(K+1)) { #because in nested k the k lists start from 1
+  
+  #at each k loop, generate a new matrix that stores the average performance at each timestep (across reps) for each network
+  avg_fitness_per_tstep <- matrix(data = NA, nrow = length(nets), ncol = tsteps)
+  
+  #loop through each network within each k
+  for (net in 1:length(nets)) {
+    
+    #loop through each timestep for each network in each k
+    for (tstep in 1:tsteps) {
+    
+      #calculate the average fitness across repetitions for each timestep
+      avg_fitness_per_tstep[net, tstep] <- mean(k_nested_perf[[k_val]][[net]][, tstep])
+    
+    }
+    
+    #add the maximum fitness achieved for each network and each k combination
+    max_fitness_per_k_net[net, k_val] <- max(avg_fitness_per_tstep[net, ])
+  
+  }
+
+}
+
+max_fitness_per_k_net
+max_fitness_tstep_per_k_net_df
+
+#plotting tstep vs k
+
+#network names to add as column
+network_names <- c("Full", "Ring", "Independent", 0.005, 0.05, 0.5, 1.0)
+
+#convert matrix to df 
+max_fitness_per_k_net_df <- as.data.frame(max_fitness_per_k_net)
+
+#column names for k values
+colnames(max_fitness_per_k_net_df) <- c(0:K)
+
+#combine the network names column with rest of df
+max_fitness_per_k_net_df <- cbind(network_names, max_fitness_per_k_net_df)
+
+max_fitness_per_k_net_df 
+
+#pivot df longer
+max_fitness_per_k_net_df <- max_fitness_per_k_net_df %>% pivot_longer(cols = 2:ncol(max_fitness_per_k_net_df), names_to = "k_values", values_to = "max_fitness_value")
+
+#merge dfs
+max_fitness_per_k_net_df_merged <- merge(max_fitness_tstep_per_k_net_df,max_fitness_per_k_net_df,by=c("network_names","k_values"))
+max_fitness_per_k_net_df_merged$network_names_k <- paste(max_fitness_per_k_net_df_merged$network_names, max_fitness_per_k_net_df_merged$k_values, sep = "_")
+
+max_fitness_per_k_net_df_merged
+
+#export merged df into excel
+file_path <- curr_wd
+file_name <- "give_file_name"
+write_xlsx(max_fitness_per_k_net_df_merged, paste0(file_path, "/", file_name, ".xlsx")) 
+
+
+#plot - normal tstep scale
+
+#plot for num agents = 30
+
+max_fitness_vs_tstep_plot <- ggplot(max_fitness_per_k_net_df_merged, aes(x = tstep_where_max_fitness, y = max_fitness_value)) + 
+  geom_point(aes(fill = network_names), colour= adjustcolor("black", alpha.f = 1), pch= 21, size = 7, alpha = (as.numeric(max_fitness_per_k_net_df_merged$k_values)+1)/10) +
+  scale_fill_manual(values = network_colours) +
+  geom_text(data = max_fitness_per_k_net_df_merged, aes(x = tstep_where_max_fitness, y = max_fitness_value), label = max_fitness_per_k_net_df_merged$k_values, size = 4)+
+  scale_y_continuous(n.breaks = 10) +
+  scale_x_continuous(n.breaks = 10) +
+  labs(title = "Timestep at which max fitness is achieved for each network for different NK landscapes vs max fitness", x = "Average first timestep at which max fitness achieved (1-100)", y = "Maximum average fitness (0-1)", fill = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 11), legend.text = element_text(size = 12))
+
+max_fitness_vs_tstep_plot
+
+ggplot2::ggsave(filename = paste0("MaxFitnessTimestep_vs_MaxFitness_200reps_allKs_n30.png"), plot = max_fitness_vs_tstep_plot, width = 10, height = 7, units = "in", path = paste0(file_path, "/"))
+
+
+
+#plot for num agents = 15
+
+max_fitness_vs_tstep_plot_15 <- ggplot(max_fitness_per_k_net_df_merged, aes(x = tstep_where_max_fitness, y = max_fitness_value)) + 
+  geom_point(aes(fill = network_names), colour= adjustcolor("black", alpha.f = 1), pch= 21, size = 7, alpha = (as.numeric(max_fitness_per_k_net_df_merged$k_values)+1)/10) +
+  scale_fill_manual(values = network_colours) +
+  geom_text(data = max_fitness_per_k_net_df_merged, aes(x = tstep_where_max_fitness, y = max_fitness_value), label = max_fitness_per_k_net_df_merged$k_values, size = 4)+
+  scale_y_continuous(n.breaks = 10) +
+  scale_x_continuous(n.breaks = 10) +
+  labs(title = "Timestep at which max fitness is achieved for each network (num agents=15) for different NK landscapes vs max fitness", x = "Average first timestep at which max fitness achieved (1-100)", y = "Maximum average fitness (0-1)", fill = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 11), legend.text = element_text(size = 12))
+
+max_fitness_vs_tstep_plot_15
+
+ggplot2::ggsave(filename = paste0("MaxFitnessTimestep_vs_MaxFitness_200reps_allKs_n15.png"), plot = max_fitness_vs_tstep_plot_15, width = 12, height = 7, units = "in", path = paste0(file_path, "/"))
+
+
+#plot - log10 version
+
+#plot for num agents = 30
+
+max_fitness_vs_tstep_log10_plot <- ggplot(max_fitness_per_k_net_df_merged, aes(x = log10(tstep_where_max_fitness), y = max_fitness_value)) + 
+  geom_point(aes(fill = network_names), colour= adjustcolor("black", alpha.f = 1), pch= 21, size = 7, alpha = (as.numeric(max_fitness_per_k_net_df_merged$k_values)+1)/10) +
+  scale_fill_manual(values = network_colours) +
+  geom_text(data = max_fitness_per_k_net_df_merged, aes(x = log10(tstep_where_max_fitness), y = max_fitness_value), label = max_fitness_per_k_net_df_merged$k_values, size = 4)+
+  scale_y_continuous(n.breaks = 10) +
+  scale_x_continuous(n.breaks = 10) +
+  labs(title = "Timestep at which max fitness is achieved for each network for different NK landscapes vs max fitness", x = "Log(10) average first timestep at which max fitness achieved", y = "Maximum average fitness (0-1)", fill = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 11), legend.text = element_text(size = 12))
+
+max_fitness_vs_tstep_log10_plot
+
+ggplot2::ggsave(filename = paste0("MaxFitnessTimestep_vs_MaxFitness_200reps_allKs_log10_n30.png"), plot = max_fitness_vs_tstep_log10_plot, width = 10, height = 7, units = "in", path = paste0(file_path, "/"))
+
+
+#plot for num agents = 15
+
+max_fitness_vs_tstep_log10_plot_15 <- ggplot(max_fitness_per_k_net_df_merged, aes(x = log10(tstep_where_max_fitness), y = max_fitness_value)) + 
+  geom_point(aes(fill = network_names), colour= adjustcolor("black", alpha.f = 1), pch= 21, size = 7, alpha = (as.numeric(max_fitness_per_k_net_df_merged$k_values)+1)/10) +
+  scale_fill_manual(values = network_colours) +
+  geom_text(data = max_fitness_per_k_net_df_merged, aes(x = log10(tstep_where_max_fitness), y = max_fitness_value), label = max_fitness_per_k_net_df_merged$k_values, size = 4)+
+  scale_y_continuous(n.breaks = 10) +
+  scale_x_continuous(n.breaks = 10) +
+  labs(title = "Timestep at which max fitness is achieved for each network (num agents=15) for different NK landscapes vs max fitness", x = "Log average first timestep at which max fitness achieved (1-100)", y = "Maximum average fitness (0-1)", fill = "Networks") +
+  theme_linedraw(base_size = 12) + theme(axis.text = element_text(size = 11), legend.text = element_text(size = 12))
+
+max_fitness_vs_tstep_log10_plot_15
+
+ggplot2::ggsave(filename = paste0("MaxFitnessTimestep_vs_MaxFitness_200reps_allKs_log10_n15.png"), plot = max_fitness_vs_tstep_log10_plot_15, width = 12, height = 7, units = "in", path = paste0(file_path, "/"))
+
+
+```
