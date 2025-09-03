@@ -13,7 +13,7 @@ Hills, T. T. (Ed.). (2024). Group Problem Solving: Harnessing the Wisdom of the 
 
 WARNING: The simulation times are very long.
 
-DISCLAIMER: Some of the K-complexity landscapes in the main study were run in batches or separately to optimise computational load and runtime. This means that if the below code is run in its entirety in a single loop, the final values in performance might vary slightly from those reported in the study. However, this should not affect the overall patterns observed in the study.
+DISCLAIMER: Some of the K-complexity landscapes in the main study were run in batches or separately to optimise computational load and runtime. This means that if the below code is run in its entirety in a single loop, the final performane values might vary slightly from those depicted in the study. However, this should not affect the overall patterns observed in the study.
 
 
 
